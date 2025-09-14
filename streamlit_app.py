@@ -1,11 +1,9 @@
 import streamlit as st
-import cv2
 import face_recognition
 import numpy as np
 import pickle
 import pandas as pd
 from datetime import datetime
-from tempfile import NamedTemporaryFile
 
 # Load or create face encodings
 try:
@@ -21,54 +19,43 @@ try:
 except:
     df = pd.DataFrame(columns=['Name','Date','Time'])
 
-st.title("Face Recognition Attendance Web App")
+st.title("Face Recognition Attendance (Browser Webcam)")
 
 menu = st.sidebar.selectbox("Menu", ["Register Face", "Mark Attendance", "Download CSV"])
 
 if menu == "Register Face":
     st.subheader("Register Face")
     name = st.text_input("Enter Name")
-    run = st.button("Start Camera")
-    if run and name:
-        cap = cv2.VideoCapture(0)
-        stframe = st.empty()
-        st.warning("Press 'q' to capture your face")
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                continue
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            stframe.image(frame_rgb, channels="RGB")
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                face_locations = face_recognition.face_locations(frame)
-                if len(face_locations) != 1:
-                    st.warning("Ensure only one face is visible")
-                    continue
-                face_encoding = face_recognition.face_encodings(frame, face_locations)[0]
-                known_faces[name] = face_encoding
-                with open('encodings.pickle','wb') as f:
-                    pickle.dump(known_faces,f)
-                st.success(f"Face of {name} registered!")
-                break
-        cap.release()
-        cv2.destroyAllWindows()
+    img_file = st.camera_input("Take a picture")
+    
+    if img_file and name:
+        # Convert image to numpy array
+        img_array = np.array(bytearray(img_file.read()), dtype=np.uint8)
+        image = face_recognition.load_image_file(img_file)
+        
+        face_locations = face_recognition.face_locations(image)
+        if len(face_locations) != 1:
+            st.warning("Ensure only one face is visible")
+        else:
+            face_encoding = face_recognition.face_encodings(image, face_locations)[0]
+            known_faces[name] = face_encoding
+            with open('encodings.pickle','wb') as f:
+                pickle.dump(known_faces,f)
+            st.success(f"Face of {name} registered successfully!")
 
 elif menu == "Mark Attendance":
     st.subheader("Mark Attendance")
-    run = st.button("Start Camera")
-    if run:
-        cap = cv2.VideoCapture(0)
-        stframe = st.empty()
-        st.warning("Press 'q' to stop")
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                continue
-            small_frame = cv2.resize(frame, (0,0), fx=0.25, fy=0.25)
-            rgb_small = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
-            face_locations = face_recognition.face_locations(rgb_small)
-            face_encodings = face_recognition.face_encodings(rgb_small, face_locations)
-            for face_encoding, face_location in zip(face_encodings, face_locations):
+    img_file = st.camera_input("Scan your face")
+    
+    if img_file:
+        image = face_recognition.load_image_file(img_file)
+        face_locations = face_recognition.face_locations(image)
+        face_encodings = face_recognition.face_encodings(image, face_locations)
+        
+        if len(face_encodings) == 0:
+            st.warning("No face detected")
+        else:
+            for face_encoding in face_encodings:
                 matches = face_recognition.compare_faces(list(known_faces.values()), face_encoding)
                 name = "Unknown"
                 face_distances = face_recognition.face_distance(list(known_faces.values()), face_encoding)
@@ -82,18 +69,8 @@ elif menu == "Mark Attendance":
                         df = pd.concat([df, pd.DataFrame([[name, date_str, time_str]], columns=['Name','Date','Time'])], ignore_index=True)
                         df.to_csv(attendance_file, index=False)
                         st.success(f"Attendance marked for {name} at {time_str}")
-                top, right, bottom, left = [v*4 for v in face_location]
-                cv2.rectangle(frame, (left, top), (right, bottom), (0,255,0), 2)
-                cv2.putText(frame, name, (left, top-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            stframe.image(frame_rgb, channels="RGB")
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        cap.release()
-        cv2.destroyAllWindows()
+                st.write(f"Detected: {name}")
 
 elif menu == "Download CSV":
     st.subheader("Download Attendance CSV")
-    tmp_download_link = NamedTemporaryFile(delete=False)
-    df.to_csv(tmp_download_link.name, index=False)
-    st.download_button("Download CSV", tmp_download_link.name, file_name="attendance.csv")
+    st.download_button("Download CSV", attendance_file, file_name="attendance.csv")
