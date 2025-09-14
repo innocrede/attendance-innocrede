@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import cv2
 import face_recognition
@@ -9,9 +7,9 @@ import pandas as pd
 from datetime import datetime
 from tempfile import NamedTemporaryFile
 
-# Load or create encodings
+# Load or create face encodings
 try:
-    with open('encodings.pickle','rb') as f:
+    with open('encodings.pickle', 'rb') as f:
         known_faces = pickle.load(f)
 except:
     known_faces = {}
@@ -39,12 +37,12 @@ if menu == "Register Face":
             ret, frame = cap.read()
             if not ret:
                 continue
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            stframe.image(frame, channels="RGB")
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            stframe.image(frame_rgb, channels="RGB")
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 face_locations = face_recognition.face_locations(frame)
                 if len(face_locations) != 1:
-                    st.warning("Ensure only one face visible")
+                    st.warning("Ensure only one face is visible")
                     continue
                 face_encoding = face_recognition.face_encodings(frame, face_locations)[0]
                 known_faces[name] = face_encoding
@@ -74,7 +72,7 @@ elif menu == "Mark Attendance":
                 matches = face_recognition.compare_faces(list(known_faces.values()), face_encoding)
                 name = "Unknown"
                 face_distances = face_recognition.face_distance(list(known_faces.values()), face_encoding)
-                best_match_index = np.argmin(face_distances) if len(face_distances)>0 else None
+                best_match_index = np.argmin(face_distances) if len(face_distances) > 0 else None
                 if best_match_index is not None and matches[best_match_index]:
                     name = list(known_faces.keys())[best_match_index]
                     now = datetime.now()
@@ -87,8 +85,8 @@ elif menu == "Mark Attendance":
                 top, right, bottom, left = [v*4 for v in face_location]
                 cv2.rectangle(frame, (left, top), (right, bottom), (0,255,0), 2)
                 cv2.putText(frame, name, (left, top-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            stframe.image(frame, channels="RGB")
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            stframe.image(frame_rgb, channels="RGB")
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         cap.release()
